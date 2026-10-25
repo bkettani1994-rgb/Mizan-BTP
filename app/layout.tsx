@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Cairo } from "next/font/google";
 import "./globals.css";
-import { AppShell } from "@/components/navigation/app-shell";
-import { AppProvider } from "@/lib/store";
 import { LocaleProvider } from "@/lib/i18n/context";
 
 const manrope = Manrope({
@@ -31,11 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${manrope.variable} ${cairo.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-surface font-sans text-ink">
-        <LocaleProvider>
-          <AppProvider>
-            <AppShell>{children}</AppShell>
-          </AppProvider>
-        </LocaleProvider>
+        <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
   );

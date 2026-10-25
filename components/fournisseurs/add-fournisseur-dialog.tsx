@@ -35,9 +35,11 @@ export function AddFournisseurDialog({
   const [open, setOpen] = useState(false);
   const [plusDeDetails, setPlusDeDetails] = useState(Boolean(fournisseur?.notes));
   const [issue, setIssue] = useState<"saved" | "deleted" | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState(false);
   const modeEdition = Boolean(fournisseur);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -59,31 +61,44 @@ export function AddFournisseurDialog({
       notes: champOuVide("notes"),
     };
 
-    if (modeEdition && fournisseur) {
-      modifierFournisseur(fournisseur.id, valeurs);
-    } else {
-      ajouterFournisseur(valeurs);
-    }
-
-    setIssue("saved");
-    setTimeout(() => {
-      setOpen(false);
-      setIssue(null);
-      if (!modeEdition) {
-        setPlusDeDetails(false);
-        form.reset();
+    setErreur(false);
+    setEnvoi(true);
+    try {
+      if (modeEdition && fournisseur) {
+        await modifierFournisseur(fournisseur.id, valeurs);
+      } else {
+        await ajouterFournisseur(valeurs);
       }
-    }, 900);
+
+      setIssue("saved");
+      setTimeout(() => {
+        setOpen(false);
+        setIssue(null);
+        if (!modeEdition) {
+          setPlusDeDetails(false);
+          form.reset();
+        }
+      }, 900);
+    } catch {
+      setErreur(true);
+    } finally {
+      setEnvoi(false);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!fournisseur) return;
-    supprimerFournisseur(fournisseur.id);
-    setIssue("deleted");
-    setTimeout(() => {
-      setOpen(false);
-      setIssue(null);
-    }, 900);
+    setErreur(false);
+    try {
+      await supprimerFournisseur(fournisseur.id);
+      setIssue("deleted");
+      setTimeout(() => {
+        setOpen(false);
+        setIssue(null);
+      }, 900);
+    } catch {
+      setErreur(true);
+    }
   }
 
   const triggerElement =
@@ -222,11 +237,17 @@ export function AddFournisseurDialog({
                 />
               )}
 
+              {erreur ? (
+                <p className="rounded-xl bg-danger-bg px-3 py-2.5 text-sm text-danger">
+                  {t("common.networkError")}
+                </p>
+              ) : null}
+
               <DialogFooter className="mt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   {t("common.cancel")}
                 </Button>
-                <Button type="submit">
+                <Button type="submit" disabled={envoi}>
                   {t(modeEdition ? "supplierForm.saveEdit" : "supplierForm.submit")}
                 </Button>
               </DialogFooter>

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 import { NAV_ITEMS } from "@/components/navigation/nav-items";
 import { LanguageToggle } from "@/components/navigation/language-toggle";
+import { LogoutButton } from "@/components/navigation/logout-button";
 import { useLocale } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,7 @@ export function Sidebar() {
 
       <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-5">
         <LanguageToggle variant="dark" />
+        <LogoutButton variant="dark" />
         <p className="text-xs font-medium text-white/40">{t("brand.tagline")}</p>
       </div>
     </aside>

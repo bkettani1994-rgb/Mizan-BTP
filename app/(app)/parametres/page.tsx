@@ -3,6 +3,7 @@
 import { Settings, Languages } from "lucide-react";
 
 import { ComingSoon } from "@/components/coming-soon";
+import { AccountCard } from "@/components/parametres/account-card";
 import { ResetDemoData } from "@/components/parametres/reset-demo-data";
 import { LanguageToggle } from "@/components/navigation/language-toggle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,6 +19,8 @@ export default function ParametresPage() {
           {t("settingsPage.title")}
         </h1>
       </header>
+
+      <AccountCard />
 
       <Card>
         <CardHeader>

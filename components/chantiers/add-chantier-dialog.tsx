@@ -26,8 +26,10 @@ export function AddChantierDialog() {
   const [open, setOpen] = useState(false);
   const [plusDeDetails, setPlusDeDetails] = useState(false);
   const [confirme, setConfirme] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState(false);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -41,24 +43,32 @@ export function AddChantierDialog() {
 
     if (!nom || !ville || !budgetTotal || !revenuPrevisionnel || !dateDebut) return;
 
-    const id = ajouterChantier({
-      nom,
-      ville,
-      budgetTotal,
-      revenuPrevisionnel,
-      avancementTravaux: Math.min(100, Math.max(0, avancementTravaux)),
-      depensesAnterieures: 0,
-      dateDebut: new Date(`${dateDebut}T12:00:00`).toISOString(),
-    });
+    setErreur(false);
+    setEnvoi(true);
+    try {
+      const id = await ajouterChantier({
+        nom,
+        ville,
+        budgetTotal,
+        revenuPrevisionnel,
+        avancementTravaux: Math.min(100, Math.max(0, avancementTravaux)),
+        depensesAnterieures: 0,
+        dateDebut: new Date(`${dateDebut}T12:00:00`).toISOString(),
+      });
 
-    setConfirme(true);
-    setTimeout(() => {
-      setOpen(false);
-      setConfirme(false);
-      setPlusDeDetails(false);
-      form.reset();
-      router.push(`/chantiers/${id}`);
-    }, 900);
+      setConfirme(true);
+      setTimeout(() => {
+        setOpen(false);
+        setConfirme(false);
+        setPlusDeDetails(false);
+        form.reset();
+        router.push(`/chantiers/${id}`);
+      }, 900);
+    } catch {
+      setErreur(true);
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   return (
@@ -174,11 +184,19 @@ export function AddChantierDialog() {
                 </button>
               )}
 
+              {erreur ? (
+                <p className="rounded-xl bg-danger-bg px-3 py-2.5 text-sm text-danger">
+                  {t("common.networkError")}
+                </p>
+              ) : null}
+
               <DialogFooter className="mt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   {t("common.cancel")}
                 </Button>
-                <Button type="submit">{t("projectForm.submit")}</Button>
+                <Button type="submit" disabled={envoi}>
+                  {t("projectForm.submit")}
+                </Button>
               </DialogFooter>
             </form>
           </>

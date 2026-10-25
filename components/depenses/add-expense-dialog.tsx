@@ -44,9 +44,11 @@ export function AddExpenseDialog({
   const [open, setOpen] = useState(false);
   const [plusDeDetails, setPlusDeDetails] = useState(Boolean(depense?.fournisseur));
   const [issue, setIssue] = useState<"saved" | "deleted" | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState(false);
   const modeEdition = Boolean(depense);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -69,31 +71,44 @@ export function AddExpenseDialog({
       fournisseur: fournisseur || undefined,
     };
 
-    if (modeEdition && depense) {
-      modifierDepense(depense.id, valeurs);
-    } else {
-      ajouterDepense(valeurs);
-    }
-
-    setIssue("saved");
-    setTimeout(() => {
-      setOpen(false);
-      setIssue(null);
-      if (!modeEdition) {
-        setPlusDeDetails(false);
-        form.reset();
+    setErreur(false);
+    setEnvoi(true);
+    try {
+      if (modeEdition && depense) {
+        await modifierDepense(depense.id, valeurs);
+      } else {
+        await ajouterDepense(valeurs);
       }
-    }, 900);
+
+      setIssue("saved");
+      setTimeout(() => {
+        setOpen(false);
+        setIssue(null);
+        if (!modeEdition) {
+          setPlusDeDetails(false);
+          form.reset();
+        }
+      }, 900);
+    } catch {
+      setErreur(true);
+    } finally {
+      setEnvoi(false);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!depense) return;
-    supprimerDepense(depense.id);
-    setIssue("deleted");
-    setTimeout(() => {
-      setOpen(false);
-      setIssue(null);
-    }, 900);
+    setErreur(false);
+    try {
+      await supprimerDepense(depense.id);
+      setIssue("deleted");
+      setTimeout(() => {
+        setOpen(false);
+        setIssue(null);
+      }, 900);
+    } catch {
+      setErreur(true);
+    }
   }
 
   const triggerElement =
@@ -262,6 +277,12 @@ export function AddExpenseDialog({
                 />
               )}
 
+              {erreur ? (
+                <p className="rounded-xl bg-danger-bg px-3 py-2.5 text-sm text-danger">
+                  {t("common.networkError")}
+                </p>
+              ) : null}
+
               <DialogFooter className="mt-2">
                 <Button
                   type="button"
@@ -270,7 +291,7 @@ export function AddExpenseDialog({
                 >
                   {t("common.cancel")}
                 </Button>
-                <Button type="submit">
+                <Button type="submit" disabled={envoi}>
                   {t(modeEdition ? "expenseForm.saveEdit" : "expenseForm.submit")}
                 </Button>
               </DialogFooter>

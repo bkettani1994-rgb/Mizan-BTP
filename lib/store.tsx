@@ -2,22 +2,29 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  chantiers as chantiersInitiaux,
-  depenses as depensesInitiales,
-  fournisseurs as fournisseursInitiaux,
-} from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+import { chantierDemo, depensesDemo, fournisseursDemo } from "@/lib/mock-data";
 import type { Chantier, Depense, Fournisseur } from "@/lib/types";
-import { idDepuisNom } from "@/lib/utils";
-
-const STORAGE_KEY = "mizan-btp-donnees-demo-v1";
+import {
+  chantierDepuisLigne,
+  chantierVersLigne,
+  depenseDepuisLigne,
+  depenseVersLigne,
+  fournisseurDepuisLigne,
+  fournisseurVersLigne,
+  type ChantierRow,
+  type DepenseRow,
+  type FournisseurRow,
+} from "@/lib/supabase/mappers";
 
 type DonneesPersistees = {
   chantiers: Chantier[];
@@ -25,150 +32,259 @@ type DonneesPersistees = {
   fournisseurs: Fournisseur[];
 };
 
-function donneesInitiales(): DonneesPersistees {
-  return {
-    chantiers: chantiersInitiaux,
-    depenses: depensesInitiales,
-    fournisseurs: fournisseursInitiaux,
-  };
+function donneesVides(): DonneesPersistees {
+  return { chantiers: [], depenses: [], fournisseurs: [] };
 }
 
 type AppContextValue = DonneesPersistees & {
-  ajouterDepense: (depense: Omit<Depense, "id">) => void;
+  /** Vrai pendant le tout premier chargement des données depuis le cloud. */
+  chargement: boolean;
+  ajouterDepense: (depense: Omit<Depense, "id">) => Promise<void>;
   /** Met à jour une dépense existante. */
-  modifierDepense: (id: string, patch: Partial<Omit<Depense, "id">>) => void;
+  modifierDepense: (id: string, patch: Partial<Omit<Depense, "id">>) => Promise<void>;
   /** Supprime définitivement une dépense. */
-  supprimerDepense: (id: string) => void;
+  supprimerDepense: (id: string) => Promise<void>;
   /** Crée un chantier et renvoie son identifiant (utile pour y naviguer ensuite). */
-  ajouterChantier: (chantier: Omit<Chantier, "id">) => string;
+  ajouterChantier: (chantier: Omit<Chantier, "id">) => Promise<string>;
   /** Met à jour un chantier existant (ex. compléter ses informations détaillées). */
-  modifierChantier: (id: string, patch: Partial<Omit<Chantier, "id">>) => void;
+  modifierChantier: (id: string, patch: Partial<Omit<Chantier, "id">>) => Promise<void>;
   /** Supprime un chantier et toutes ses dépenses associées. */
-  supprimerChantier: (id: string) => void;
+  supprimerChantier: (id: string) => Promise<void>;
   /** Crée un fournisseur et renvoie son identifiant. */
-  ajouterFournisseur: (fournisseur: Omit<Fournisseur, "id">) => string;
+  ajouterFournisseur: (fournisseur: Omit<Fournisseur, "id">) => Promise<string>;
   /** Met à jour les coordonnées d'un fournisseur existant. */
-  modifierFournisseur: (id: string, patch: Partial<Omit<Fournisseur, "id">>) => void;
+  modifierFournisseur: (id: string, patch: Partial<Omit<Fournisseur, "id">>) => Promise<void>;
   /** Retire un fournisseur du carnet (n'efface pas les dépenses déjà enregistrées à son nom). */
-  supprimerFournisseur: (id: string) => void;
-  reinitialiser: () => void;
+  supprimerFournisseur: (id: string) => Promise<void>;
+  /** Efface toutes les données du compte et réinsère le chantier de démonstration. */
+  reinitialiser: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+/**
+ * Sème le chantier de démonstration pour un tout nouveau compte, afin que
+ * l'utilisateur découvre l'application déjà peuplée plutôt qu'une page vide.
+ */
+async function semerDonneesDemo(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<DonneesPersistees> {
+  const { data: chantierRow, error: erreurChantier } = await supabase
+    .from("chantiers")
+    .insert({ ...chantierVersLigne(chantierDemo), user_id: userId })
+    .select()
+    .single();
+  if (erreurChantier || !chantierRow) throw erreurChantier ?? new Error("Échec du semis du chantier de démonstration");
+
+  const chantier = chantierDepuisLigne(chantierRow as ChantierRow);
+
+  const { data: depensesRows, error: erreurDepenses } = await supabase
+    .from("depenses")
+    .insert(
+      depensesDemo.map((depense) => ({
+        ...depenseVersLigne({ ...depense, chantierId: chantier.id }),
+        user_id: userId,
+      })),
+    )
+    .select();
+  if (erreurDepenses) throw erreurDepenses;
+
+  const { data: fournisseursRows, error: erreurFournisseurs } = await supabase
+    .from("fournisseurs")
+    .insert(fournisseursDemo.map((fournisseur) => ({ ...fournisseurVersLigne(fournisseur), user_id: userId })))
+    .select();
+  if (erreurFournisseurs) throw erreurFournisseurs;
+
+  return {
+    chantiers: [chantier],
+    depenses: ((depensesRows ?? []) as DepenseRow[]).map(depenseDepuisLigne),
+    fournisseurs: ((fournisseursRows ?? []) as FournisseurRow[]).map(fournisseurDepuisLigne),
+  };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [donnees, setDonnees] = useState<DonneesPersistees>(donneesInitiales);
-  // Devient vrai une fois les données sauvegardées relues : tant que ce n'est
-  // pas fait, on n'écrit rien dans localStorage pour ne pas écraser une
-  // sauvegarde existante avec les données de démo du tout premier rendu.
-  const [donneesChargees, setDonneesChargees] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
+  const [donnees, setDonnees] = useState<DonneesPersistees>(donneesVides);
+  const [chargement, setChargement] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  // Charge les données sauvegardées (si l'utilisateur a déjà testé l'app sur cet appareil).
   useEffect(() => {
-    try {
-      const brut = window.localStorage.getItem(STORAGE_KEY);
-      if (brut) {
-        const parsed = JSON.parse(brut) as Partial<DonneesPersistees>;
-        if (parsed?.chantiers && parsed?.depenses) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- hydratation ponctuelle depuis localStorage (indisponible côté serveur)
-          setDonnees({
-            chantiers: parsed.chantiers,
-            depenses: parsed.depenses,
-            // Sauvegardes antérieures à l'ajout du carnet fournisseurs.
-            fournisseurs: parsed.fournisseurs ?? fournisseursInitiaux,
-          });
-        }
+    let actif = true;
+
+    async function charger() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!actif) return;
+      if (!user) {
+        setChargement(false);
+        return;
       }
-    } catch {
-      // stockage indisponible ou corrompu : on garde les données de démonstration
-    }
-    setDonneesChargees(true);
-  }, []);
+      setUserId(user.id);
 
-  // Sauvegarde à chaque changement, une fois l'hydratation initiale terminée.
-  useEffect(() => {
-    if (!donneesChargees) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(donnees));
-    } catch {
-      // quota dépassé ou navigation privée : tant pis, les données restent en mémoire
+      const [{ data: chantiersRows }, { data: depensesRows }, { data: fournisseursRows }] =
+        await Promise.all([
+          supabase.from("chantiers").select("*").eq("user_id", user.id).order("date_debut", { ascending: false }),
+          supabase.from("depenses").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+          supabase.from("fournisseurs").select("*").eq("user_id", user.id).order("nom", { ascending: true }),
+        ]);
+      if (!actif) return;
+
+      let chargees: DonneesPersistees = {
+        chantiers: ((chantiersRows ?? []) as ChantierRow[]).map(chantierDepuisLigne),
+        depenses: ((depensesRows ?? []) as DepenseRow[]).map(depenseDepuisLigne),
+        fournisseurs: ((fournisseursRows ?? []) as FournisseurRow[]).map(fournisseurDepuisLigne),
+      };
+
+      if (
+        chargees.chantiers.length === 0 &&
+        chargees.depenses.length === 0 &&
+        chargees.fournisseurs.length === 0
+      ) {
+        chargees = await semerDonneesDemo(supabase, user.id);
+      }
+
+      if (!actif) return;
+      setDonnees(chargees);
+      setChargement(false);
     }
-  }, [donnees, donneesChargees]);
+
+    charger();
+    return () => {
+      actif = false;
+    };
+  }, [supabase]);
+
+  const assurerUtilisateur = useCallback(() => {
+    if (!userId) throw new Error("Utilisateur non connecté");
+    return userId;
+  }, [userId]);
 
   const value = useMemo<AppContextValue>(
     () => ({
       ...donnees,
-      ajouterDepense: (depense) => {
+      chargement,
+      ajouterDepense: async (depense) => {
+        const uid = assurerUtilisateur();
+        const { data, error } = await supabase
+          .from("depenses")
+          .insert({ ...depenseVersLigne(depense), user_id: uid })
+          .select()
+          .single();
+        if (error || !data) throw error ?? new Error("Échec de l'ajout de la dépense");
+        const nouvelle = depenseDepuisLigne(data as DepenseRow);
+        setDonnees((prev) => ({ ...prev, depenses: [nouvelle, ...prev.depenses] }));
+      },
+      modifierDepense: async (id, patch) => {
+        const { data, error } = await supabase
+          .from("depenses")
+          .update(depenseVersLigne(patch))
+          .eq("id", id)
+          .select()
+          .single();
+        if (error || !data) throw error ?? new Error("Échec de la modification de la dépense");
+        const modifiee = depenseDepuisLigne(data as DepenseRow);
         setDonnees((prev) => ({
           ...prev,
-          depenses: [
-            { ...depense, id: `d-${Date.now()}-${Math.round(Math.random() * 1000)}` },
-            ...prev.depenses,
-          ],
+          depenses: prev.depenses.map((depense) => (depense.id === id ? modifiee : depense)),
         }));
       },
-      modifierDepense: (id, patch) => {
-        setDonnees((prev) => ({
-          ...prev,
-          depenses: prev.depenses.map((depense) =>
-            depense.id === id ? { ...depense, ...patch } : depense,
-          ),
-        }));
-      },
-      supprimerDepense: (id) => {
+      supprimerDepense: async (id) => {
+        const { error } = await supabase.from("depenses").delete().eq("id", id);
+        if (error) throw error;
         setDonnees((prev) => ({
           ...prev,
           depenses: prev.depenses.filter((depense) => depense.id !== id),
         }));
       },
-      ajouterChantier: (chantier) => {
-        const id = idDepuisNom(chantier.nom, "chantier");
+      ajouterChantier: async (chantier) => {
+        const uid = assurerUtilisateur();
+        const { data, error } = await supabase
+          .from("chantiers")
+          .insert({ ...chantierVersLigne(chantier), user_id: uid })
+          .select()
+          .single();
+        if (error || !data) throw error ?? new Error("Échec de la création du chantier");
+        const nouveau = chantierDepuisLigne(data as ChantierRow);
+        setDonnees((prev) => ({ ...prev, chantiers: [...prev.chantiers, nouveau] }));
+        return nouveau.id;
+      },
+      modifierChantier: async (id, patch) => {
+        const { data, error } = await supabase
+          .from("chantiers")
+          .update(chantierVersLigne(patch))
+          .eq("id", id)
+          .select()
+          .single();
+        if (error || !data) throw error ?? new Error("Échec de la modification du chantier");
+        const modifie = chantierDepuisLigne(data as ChantierRow);
         setDonnees((prev) => ({
           ...prev,
-          chantiers: [...prev.chantiers, { ...chantier, id }],
-        }));
-        return id;
-      },
-      modifierChantier: (id, patch) => {
-        setDonnees((prev) => ({
-          ...prev,
-          chantiers: prev.chantiers.map((chantier) =>
-            chantier.id === id ? { ...chantier, ...patch } : chantier,
-          ),
+          chantiers: prev.chantiers.map((chantier) => (chantier.id === id ? modifie : chantier)),
         }));
       },
-      supprimerChantier: (id) => {
+      supprimerChantier: async (id) => {
+        // La contrainte "on delete cascade" côté base supprime aussi les dépenses liées.
+        const { error } = await supabase.from("chantiers").delete().eq("id", id);
+        if (error) throw error;
         setDonnees((prev) => ({
           ...prev,
           chantiers: prev.chantiers.filter((chantier) => chantier.id !== id),
           depenses: prev.depenses.filter((depense) => depense.chantierId !== id),
         }));
       },
-      ajouterFournisseur: (fournisseur) => {
-        const id = idDepuisNom(fournisseur.nom, "fournisseur");
-        setDonnees((prev) => ({
-          ...prev,
-          fournisseurs: [...prev.fournisseurs, { ...fournisseur, id }],
-        }));
-        return id;
+      ajouterFournisseur: async (fournisseur) => {
+        const uid = assurerUtilisateur();
+        const { data, error } = await supabase
+          .from("fournisseurs")
+          .insert({ ...fournisseurVersLigne(fournisseur), user_id: uid })
+          .select()
+          .single();
+        if (error || !data) throw error ?? new Error("Échec de l'ajout du fournisseur");
+        const nouveau = fournisseurDepuisLigne(data as FournisseurRow);
+        setDonnees((prev) => ({ ...prev, fournisseurs: [...prev.fournisseurs, nouveau] }));
+        return nouveau.id;
       },
-      modifierFournisseur: (id, patch) => {
+      modifierFournisseur: async (id, patch) => {
+        const { data, error } = await supabase
+          .from("fournisseurs")
+          .update(fournisseurVersLigne(patch))
+          .eq("id", id)
+          .select()
+          .single();
+        if (error || !data) throw error ?? new Error("Échec de la modification du fournisseur");
+        const modifie = fournisseurDepuisLigne(data as FournisseurRow);
         setDonnees((prev) => ({
           ...prev,
           fournisseurs: prev.fournisseurs.map((fournisseur) =>
-            fournisseur.id === id ? { ...fournisseur, ...patch } : fournisseur,
+            fournisseur.id === id ? modifie : fournisseur,
           ),
         }));
       },
-      supprimerFournisseur: (id) => {
+      supprimerFournisseur: async (id) => {
+        const { error } = await supabase.from("fournisseurs").delete().eq("id", id);
+        if (error) throw error;
         setDonnees((prev) => ({
           ...prev,
           fournisseurs: prev.fournisseurs.filter((fournisseur) => fournisseur.id !== id),
         }));
       },
-      reinitialiser: () => setDonnees(donneesInitiales()),
+      reinitialiser: async () => {
+        const uid = assurerUtilisateur();
+        await Promise.all([
+          supabase.from("depenses").delete().eq("user_id", uid),
+          supabase.from("fournisseurs").delete().eq("user_id", uid),
+        ]);
+        // Les chantiers sont supprimés après coup : leur suppression entraîne déjà
+        // celle de leurs dépenses, mais on l'a fait ci-dessus pour les dépenses
+        // qui ne seraient plus rattachées à un chantier existant.
+        await supabase.from("chantiers").delete().eq("user_id", uid);
+        const fraiches = await semerDonneesDemo(supabase, uid);
+        setDonnees(fraiches);
+      },
     }),
-    [donnees],
+    [donnees, chargement, supabase, assurerUtilisateur],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

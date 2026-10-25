@@ -52,9 +52,11 @@ export function ChantierDetailsDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [issue, setIssue] = useState<"saved" | "deleted" | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState(false);
   const d = chantier.details;
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -90,29 +92,42 @@ export function ChantierDetailsDialog({
       notes: texteOuVide(data.get("notes")),
     };
 
-    modifierChantier(chantier.id, {
-      nom,
-      ville,
-      budgetTotal,
-      revenuPrevisionnel,
-      dateDebut,
-      avancementTravaux,
-      details,
-    });
+    setErreur(false);
+    setEnvoi(true);
+    try {
+      await modifierChantier(chantier.id, {
+        nom,
+        ville,
+        budgetTotal,
+        revenuPrevisionnel,
+        dateDebut,
+        avancementTravaux,
+        details,
+      });
 
-    setIssue("saved");
-    setTimeout(() => {
-      setOpen(false);
-      setIssue(null);
-    }, 900);
+      setIssue("saved");
+      setTimeout(() => {
+        setOpen(false);
+        setIssue(null);
+      }, 900);
+    } catch {
+      setErreur(true);
+    } finally {
+      setEnvoi(false);
+    }
   }
 
-  function handleDelete() {
-    supprimerChantier(chantier.id);
-    setIssue("deleted");
-    setTimeout(() => {
-      router.push("/chantiers");
-    }, 900);
+  async function handleDelete() {
+    setErreur(false);
+    try {
+      await supprimerChantier(chantier.id);
+      setIssue("deleted");
+      setTimeout(() => {
+        router.push("/chantiers");
+      }, 900);
+    } catch {
+      setErreur(true);
+    }
   }
 
   const triggerElement = isValidElement(trigger)
@@ -374,11 +389,19 @@ export function ChantierDetailsDialog({
                 onConfirm={handleDelete}
               />
 
+              {erreur ? (
+                <p className="rounded-xl bg-danger-bg px-3 py-2.5 text-sm text-danger">
+                  {t("common.networkError")}
+                </p>
+              ) : null}
+
               <DialogFooter className="mt-1">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   {t("common.cancel")}
                 </Button>
-                <Button type="submit">{t("projectDetailsForm.save")}</Button>
+                <Button type="submit" disabled={envoi}>
+                  {t("projectDetailsForm.save")}
+                </Button>
               </DialogFooter>
             </form>
           </>

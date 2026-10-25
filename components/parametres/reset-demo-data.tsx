@@ -13,12 +13,22 @@ export function ResetDemoData() {
   const { t } = useLocale();
   const [confirmation, setConfirmation] = useState(false);
   const [fait, setFait] = useState(false);
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState(false);
 
-  function handleReset() {
-    reinitialiser();
-    setConfirmation(false);
-    setFait(true);
-    setTimeout(() => setFait(false), 2500);
+  async function handleReset() {
+    setErreur(false);
+    setEnCours(true);
+    try {
+      await reinitialiser();
+      setConfirmation(false);
+      setFait(true);
+      setTimeout(() => setFait(false), 2500);
+    } catch {
+      setErreur(true);
+    } finally {
+      setEnCours(false);
+    }
   }
 
   return (
@@ -35,7 +45,7 @@ export function ResetDemoData() {
               <Button variant="outline" size="sm" onClick={() => setConfirmation(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button size="sm" onClick={handleReset}>
+              <Button size="sm" onClick={handleReset} disabled={enCours}>
                 {t("common.confirm")}
               </Button>
             </div>
@@ -48,6 +58,9 @@ export function ResetDemoData() {
         )}
         {fait ? (
           <p className="text-sm font-medium text-success">{t("settingsPage.resetDone")}</p>
+        ) : null}
+        {erreur ? (
+          <p className="text-sm font-medium text-danger">{t("common.networkError")}</p>
         ) : null}
       </CardContent>
     </Card>

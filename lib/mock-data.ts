@@ -1,4 +1,4 @@
-import type { Chantier, Depense, Fournisseur } from "@/lib/types";
+import type { ChantierDetails, Depense, Fournisseur } from "@/lib/types";
 
 function isoDaysAgo(daysAgo: number): string {
   const date = new Date();
@@ -7,108 +7,92 @@ function isoDaysAgo(daysAgo: number): string {
   return date.toISOString();
 }
 
-export const chantiers: Chantier[] = [
+/**
+ * Données de démonstration insérées automatiquement lors de la toute
+ * première connexion d'un nouvel utilisateur, pour qu'il découvre
+ * l'application avec un chantier déjà renseigné plutôt qu'une page vide.
+ */
+export const chantierDemo: {
+  nom: string;
+  ville: string;
+  budgetTotal: number;
+  depensesAnterieures: number;
+  revenuPrevisionnel: number;
+  avancementTravaux: number;
+  dateDebut: string;
+  details: ChantierDetails;
+} = {
+  nom: "Résidence Al Andalous",
+  ville: "Casablanca",
+  budgetTotal: 18_500_000,
+  // 10 175 000 MAD dépensés au total, dont une partie suivie en détail ci-dessous
+  depensesAnterieures: 9_079_500,
+  revenuPrevisionnel: 24_000_000,
+  avancementTravaux: 55,
+  dateDebut: isoDaysAgo(260),
+  details: {
+    surfaceTerrain: 4_200,
+    prixTerrain: 6_300_000,
+    referenceFonciere: "TF 45872/C",
+    numeroPermis: "PC-2025-0318",
+    datePermis: isoDaysAgo(280),
+    surfaceConstruite: 9_500,
+    nombreLots: 64,
+    nombreEtages: 7,
+    architecte: "Cabinet Architecture Atlas",
+    entrepriseConstruction: "SARL Bâtiss Pro",
+    responsableChantier: "Hamid Belmekki",
+    telephoneResponsable: "06 61 23 45 67",
+  },
+};
+
+export const depensesDemo: Omit<Depense, "id" | "chantierId">[] = [
   {
-    id: "al-andalous",
-    nom: "Résidence Al Andalous",
-    ville: "Casablanca",
-    budgetTotal: 18_500_000,
-    // 10 175 000 MAD dépensés au total, dont 1 095 500 MAD suivis en détail ci-dessous
-    depensesAnterieures: 9_079_500,
-    revenuPrevisionnel: 24_000_000,
-    avancementTravaux: 55,
-    dateDebut: isoDaysAgo(260),
-    details: {
-      surfaceTerrain: 4_200,
-      prixTerrain: 6_300_000,
-      referenceFonciere: "TF 45872/C",
-      numeroPermis: "PC-2025-0318",
-      datePermis: isoDaysAgo(280),
-      surfaceConstruite: 9_500,
-      nombreLots: 64,
-      nombreEtages: 7,
-      architecte: "Cabinet Architecture Atlas",
-      entrepriseConstruction: "SARL Bâtiss Pro",
-      responsableChantier: "Hamid Belmekki",
-      telephoneResponsable: "06 61 23 45 67",
-    },
+    date: isoDaysAgo(3),
+    description: "Main d'œuvre — gros œuvre",
+    fournisseur: "SARL Bâtiss Pro",
+    categorie: "Main d'œuvre",
+    montant: 268_000,
   },
   {
-    id: "villas-atlas",
-    nom: "Villas Atlas",
-    ville: "Marrakech",
-    budgetTotal: 32_000_000,
-    // 33 500 000 MAD dépensés au total, dont 1 943 000 MAD suivis en détail ci-dessous
-    depensesAnterieures: 31_557_000,
-    revenuPrevisionnel: 41_000_000,
-    avancementTravaux: 82,
-    dateDebut: isoDaysAgo(400),
-    details: {
-      surfaceTerrain: 12_000,
-      prixTerrain: 18_000_000,
-      referenceFonciere: "TF 51203/M",
-      numeroPermis: "PC-2024-1142",
-      datePermis: isoDaysAgo(420),
-      surfaceConstruite: 7_800,
-      nombreLots: 18,
-      nombreEtages: 2,
-      architecte: "Omar Fassi Architectes",
-      entrepriseConstruction: "Groupe BTP Marrakech",
-      responsableChantier: "Rachid Ouazzani",
-      telephoneResponsable: "06 54 32 10 98",
-      notes: "Villas haut standing avec piscine privée. Livraison prévue en 2 tranches.",
-    },
+    date: isoDaysAgo(12),
+    description: "Béton prêt à l'emploi — étage 6",
+    fournisseur: "Ciments de l'Atlas",
+    categorie: "Matériaux",
+    montant: 176_500,
   },
   {
-    id: "bay-view",
-    nom: "Immeuble Bay View",
-    ville: "Tanger",
-    budgetTotal: 14_000_000,
-    // 7 500 000 MAD dépensés au total, dont 936 000 MAD suivis en détail ci-dessous
-    depensesAnterieures: 6_564_000,
-    revenuPrevisionnel: 19_500_000,
-    avancementTravaux: 40,
-    dateDebut: isoDaysAgo(190),
+    date: isoDaysAgo(24),
+    description: "Étanchéité toiture-terrasse",
+    fournisseur: "ÉtancheMaroc",
+    categorie: "Finitions",
+    montant: 63_000,
   },
   {
-    id: "les-oliviers",
-    nom: "Résidence Les Oliviers",
-    ville: "Rabat",
-    budgetTotal: 9_800_000,
-    // 1 150 000 MAD dépensés au total, dont 540 000 MAD suivis en détail ci-dessous
-    depensesAnterieures: 610_000,
-    revenuPrevisionnel: 13_200_000,
-    avancementTravaux: 10,
-    dateDebut: isoDaysAgo(45),
+    date: isoDaysAgo(52),
+    description: "Main d'œuvre — second œuvre",
+    fournisseur: "SARL Bâtiss Pro",
+    categorie: "Main d'œuvre",
+    montant: 221_000,
+  },
+  {
+    date: isoDaysAgo(80),
+    description: "Location grue à tour — mensuel",
+    fournisseur: "LocaGrue Maroc",
+    categorie: "Location matériel",
+    montant: 92_000,
+  },
+  {
+    date: isoDaysAgo(130),
+    description: "Terrassement",
+    fournisseur: "Travaux Publics Rabat",
+    categorie: "Gros œuvre",
+    montant: 275_000,
   },
 ];
 
-export const depenses: Depense[] = [
-  { id: "d1", date: isoDaysAgo(1), chantierId: "villas-atlas", description: "Carrelage et revêtements sols", fournisseur: "Céramiques du Sud", categorie: "Finitions", montant: 142_000 },
-  { id: "d2", date: isoDaysAgo(3), chantierId: "al-andalous", description: "Main d'œuvre — gros œuvre", fournisseur: "SARL Bâtiss Pro", categorie: "Main d'œuvre", montant: 268_000 },
-  { id: "d3", date: isoDaysAgo(5), chantierId: "bay-view", description: "Location grue à tour — mensuel", fournisseur: "LocaGrue Maroc", categorie: "Location matériel", montant: 95_000 },
-  { id: "d4", date: isoDaysAgo(6), chantierId: "villas-atlas", description: "Menuiserie aluminium — lot 3", fournisseur: "Alu Design", categorie: "Finitions", montant: 310_000 },
-  { id: "d5", date: isoDaysAgo(9), chantierId: "les-oliviers", description: "Terrassement et fondations", fournisseur: "Travaux Publics Rabat", categorie: "Gros œuvre", montant: 420_000 },
-  { id: "d6", date: isoDaysAgo(12), chantierId: "al-andalous", description: "Béton prêt à l'emploi — étage 6", fournisseur: "Ciments de l'Atlas", categorie: "Matériaux", montant: 176_500 },
-  { id: "d7", date: isoDaysAgo(15), chantierId: "bay-view", description: "Plomberie — réseaux encastrés", fournisseur: "Hydro Plus", categorie: "Lots techniques", montant: 88_000 },
-  { id: "d8", date: isoDaysAgo(18), chantierId: "villas-atlas", description: "Électricité — tableaux et câblage", fournisseur: "ElecPro Marrakech", categorie: "Lots techniques", montant: 154_000 },
-  { id: "d9", date: isoDaysAgo(24), chantierId: "al-andalous", description: "Étanchéité toiture-terrasse", fournisseur: "ÉtancheMaroc", categorie: "Finitions", montant: 63_000 },
-  { id: "d10", date: isoDaysAgo(29), chantierId: "les-oliviers", description: "Honoraires bureau d'études", fournisseur: "Cabinet Ingénia", categorie: "Études", montant: 120_000 },
-  { id: "d11", date: isoDaysAgo(35), chantierId: "bay-view", description: "Ferraillage structure", fournisseur: "Steel Maroc", categorie: "Matériaux", montant: 198_000 },
-  { id: "d12", date: isoDaysAgo(41), chantierId: "villas-atlas", description: "Peinture façades et intérieurs", fournisseur: "ColorBTP", categorie: "Finitions", montant: 132_000 },
-  { id: "d13", date: isoDaysAgo(52), chantierId: "al-andalous", description: "Main d'œuvre — second œuvre", fournisseur: "SARL Bâtiss Pro", categorie: "Main d'œuvre", montant: 221_000 },
-  { id: "d14", date: isoDaysAgo(60), chantierId: "villas-atlas", description: "Ascenseurs — acompte commande", fournisseur: "ElevatorTech", categorie: "Lots techniques", montant: 540_000 },
-  { id: "d15", date: isoDaysAgo(68), chantierId: "bay-view", description: "Maçonnerie — murs porteurs", fournisseur: "Travaux Publics Rabat", categorie: "Gros œuvre", montant: 245_000 },
-  { id: "d16", date: isoDaysAgo(80), chantierId: "al-andalous", description: "Location grue à tour — mensuel", fournisseur: "LocaGrue Maroc", categorie: "Location matériel", montant: 92_000 },
-  { id: "d17", date: isoDaysAgo(95), chantierId: "villas-atlas", description: "Gros œuvre — dalles étages 5-6", fournisseur: "Ciments de l'Atlas", categorie: "Matériaux", montant: 480_000 },
-  { id: "d18", date: isoDaysAgo(110), chantierId: "bay-view", description: "Fondations spéciales", fournisseur: "Travaux Publics Rabat", categorie: "Gros œuvre", montant: 310_000 },
-  { id: "d19", date: isoDaysAgo(130), chantierId: "al-andalous", description: "Terrassement", fournisseur: "Travaux Publics Rabat", categorie: "Gros œuvre", montant: 275_000 },
-  { id: "d20", date: isoDaysAgo(150), chantierId: "villas-atlas", description: "Permis et taxes de construction", fournisseur: "Commune de Marrakech", categorie: "Administratif", montant: 185_000 },
-];
-
-export const fournisseurs: Fournisseur[] = [
+export const fournisseursDemo: Omit<Fournisseur, "id">[] = [
   {
-    id: "sarl-battiss-pro",
     nom: "SARL Bâtiss Pro",
     telephone: "05 22 45 67 89",
     email: "contact@battisspro.ma",
@@ -116,7 +100,6 @@ export const fournisseurs: Fournisseur[] = [
     adresse: "Zone industrielle Ain Sebaâ, Casablanca",
   },
   {
-    id: "ciments-atlas",
     nom: "Ciments de l'Atlas",
     telephone: "05 24 30 12 34",
     email: "commercial@ciments-atlas.ma",
@@ -124,13 +107,11 @@ export const fournisseurs: Fournisseur[] = [
     adresse: "Route de Safi, Marrakech",
   },
   {
-    id: "locagrue-maroc",
     nom: "LocaGrue Maroc",
     telephone: "06 61 11 22 33",
     specialite: "Location matériel",
   },
   {
-    id: "travaux-publics-rabat",
     nom: "Travaux Publics Rabat",
     telephone: "05 37 70 80 90",
     email: "devis@tprabat.ma",
@@ -138,7 +119,6 @@ export const fournisseurs: Fournisseur[] = [
     adresse: "Avenue Hassan II, Rabat",
   },
   {
-    id: "menuiserie-du-nord",
     nom: "Menuiserie du Nord",
     telephone: "06 70 45 12 36",
     specialite: "Finitions",
